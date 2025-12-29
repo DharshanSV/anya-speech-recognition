@@ -1,0 +1,493 @@
+import pyttsx3
+import speech_recognition as sr
+import datetime
+import webbrowser
+import wikipedia
+import pyjokes
+import time
+import subprocess
+import requests
+import json
+import os
+import psutil
+import ctypes
+import pyautogui
+import openai
+from bs4 import BeautifulSoup
+from googlesearch import search
+
+sr.Recognizer.dynamic_energy_threshold = True
+
+# Initialize pyttsx3 engine
+engine = pyttsx3.init('sapi5')
+engine.setProperty('voice', engine.getProperty('voices')[1].id)
+engine.setProperty('rate', 170)
+engine.setProperty('volume', 0.9)
+
+# Anya's Data
+anya_data = {
+    "name": "Anya",
+    "age": 2,
+    "skills": ["Speech Recognition", "AI Chatbot", "Weather Updates", "Web Browsing", "Jokes"]
+}
+anya_json = json.dumps(anya_data, indent=4)
+
+
+def speak(audio):
+    """Speaks the given text."""
+    engine.say(audio)
+    engine.runAndWait()
+
+
+def chat_with_gpt(query):
+    """Integrates OpenAI's GPT-3.5 to answer general questions."""
+    openai.api_key = "YOUR_OPENAI_API_KEY"  # Replace with your API key
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": "You are a helpful AI assistant."},
+                      {"role": "user", "content": query}]
+        )
+        answer = response["choices"][0]["message"]["content"]
+        speak(answer)
+    except Exception as e:
+        speak("❌ Sorry, I couldn't connect to OpenAI.")
+        print(f"Error: {e}")
+
+def wishMe():
+    """Greets the user based on the time of the day."""
+    hour = datetime.datetime.now().hour
+    greeting = "Good morning" if hour < 12 else "Good afternoon" if hour < 18 else "Good evening"
+    speak(f"{greeting}! I am {anya_data['name']}. How may I assist you today?")
+
+def close_application(app_name):
+    """Closes any running application by name."""
+    try:
+        found = False
+        for proc in psutil.process_iter(['pid', 'name']):
+            if app_name.lower() in proc.info['name'].lower():
+                proc.kill()
+                found = True
+
+        if found:
+            speak(f"Closed {app_name}.")
+        else:
+            speak(f"{app_name} is not running.")
+
+    except Exception as e:
+        speak(f"Sorry, I couldn't close {app_name}. Error occurred.")
+        print(e)
+
+
+def takeCommand():
+    """Listens to the user's command with high noise resistance and fast response."""
+    recognizer = sr.Recognizer()
+
+    with sr.Microphone() as source:
+        print("🎤 Listening...")
+
+        # Better noise handling
+        recognizer.adjust_for_ambient_noise(source, duration=0.3)
+
+        # Lower energy threshold for quiet voice detection
+        recognizer.energy_threshold = 200
+
+        # Faster reaction
+        recognizer.pause_threshold = 0.5
+        recognizer.operation_timeout = 3
+
+        try:
+            audio = recognizer.listen(source, timeout=2, phrase_time_limit=5)
+        except Exception as e:
+            speak("I didn't catch that, please repeat.")
+            return None
+
+    try:
+        query = recognizer.recognize_google(audio, language="en-IN")
+        print(f"🗣️ User said: {query}")
+        return query.lower()
+
+    except sr.UnknownValueError:
+        speak("Couldn't understand. Please say that again.")
+        return None
+
+    except sr.RequestError:
+        speak("Network issue. Try again.")
+        return None
+
+def tellJoke():
+    """Tells a random joke."""
+    joke = pyjokes.get_joke()
+    speak(joke)
+
+def google_search(query):
+    try:
+        speak("Searching Google.")
+        url = f"https://www.google.com/search?q={query}"
+        webbrowser.open(url)
+    except:
+        speak("Sorry, I could not search Google.")
+
+
+def open_gmail():
+    speak("Opening Gmail.")
+    webbrowser.open("https://mail.google.com")
+
+
+def open_instagram():
+    speak("Opening Instagram.")
+    webbrowser.open("https://www.instagram.com/")
+
+
+def open_Zoho():
+    speak("Opening Zoho.")
+    webbrowser.open("https://www.zoho.com/careers/")
+
+
+def open_website(site):
+    speak(f"Opening {site}")
+    webbrowser.open(f"https://{site}")
+
+
+def youtube_search(query):
+    speak("Searching YouTube.")
+    url = f"https://www.youtube.com/results?search_query={query}"
+    webbrowser.open(url)
+
+
+def get_news():
+    speak("Fetching today's news.")
+
+    try:
+        url = "https://news.google.com/rss"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "xml")
+
+        headlines = soup.find_all("title")[1:6]  # top 5 headlines
+
+        speak("Here are the top news headlines.")
+        for h in headlines:
+            speak(h.text)
+
+    except:
+        speak("Sorry, I couldn't get the news right now.")
+
+
+def wikipedia_search(query):
+    try:
+        speak("Searching Wikipedia.")
+        summary = wikipedia.summary(query, sentences=2)
+        speak(summary)
+    except:
+        speak("Sorry, I couldn't fetch Wikipedia results.")
+
+
+# ---------------- SYSTEM CONTROLS ---------------- #
+
+def lock_pc():
+    speak("Locking your computer.")
+    os.system("rundll32.exe user32.dll,LockWorkStation")
+
+
+def sign_out():
+    if confirm_action("sign out"):
+        speak("Signing out.")
+        os.system("shutdown -l")
+    else:
+        speak("Cancelled.")
+
+
+def battery_status():
+    battery = psutil.sensors_battery()
+    if battery:
+        speak(f"Your battery is at {battery.percent} percent.")
+    else:
+        speak("Sorry, I cannot read battery status.")
+
+
+def volume_up():
+    speak("Increasing volume.")
+    for _ in range(5):
+        ctypes.windll.user32.keybd_event(0xAF, 0, 0, 0)
+
+
+def volume_down():
+    speak("Decreasing volume.")
+    for _ in range(5):
+        ctypes.windll.user32.keybd_event(0xAE, 0, 0, 0)
+
+
+def volume_mute():
+    speak("Muting volume.")
+    ctypes.windll.user32.keybd_event(0xAD, 0, 0, 0)
+
+
+def volume_unmute():
+    speak("Unmuting.")
+    ctypes.windll.user32.keybd_event(0xAD, 0, 0, 0)
+
+
+def brightness_up():
+    speak("Increasing brightness.")
+    os.system(
+        'powershell (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,80)')
+
+
+def brightness_down():
+    speak("Decreasing brightness.")
+    os.system(
+        'powershell (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,20)')
+
+
+def take_screenshot():
+    speak("Taking screenshot.")
+    screenshot = pyautogui.screenshot()
+    screenshot.save("screenshot.png")
+    speak("Screenshot saved as screenshot.png.")
+
+
+def confirm_action(action_name):
+    speak(f"Are you sure you want to {action_name}? Say yes to confirm.")
+    confirmation = takeCommand()
+
+    if not confirmation:
+        return False  # no voice detected
+
+    confirmation = confirmation.lower()
+
+    yes_words = ["yes", "yeah", "yup", "ya", "sure", "ok", "okay", "confirm"]
+
+    return any(word in confirmation for word in yes_words)
+
+
+def shutdown_system():
+    if confirm_action("shut down the system"):
+        speak("Shutting down the system. Goodbye!")
+        os.system("shutdown /s /t 0")
+    else:
+        speak("Shutdown cancelled.")
+
+
+def restart_system():
+    if confirm_action("restart the system"):
+        speak("Restarting the system now.")
+        os.system("shutdown /r /t 0")
+    else:
+        speak("Restart cancelled.")
+
+
+def sleep_system():
+    if confirm_action("put the system to sleep"):
+        speak("Sleeping now.")
+        os.system("powercfg -hibernate off")
+        os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+    else:
+        speak("Sleep cancelled.")
+
+
+def search_on_youtube(query):
+    speak(f"Searching YouTube for {query}")
+
+    query = query.replace("search on youtube", "").replace("search youtube", "").replace("search", "").strip()
+
+    if not query:
+        speak("What should I search on YouTube?")
+        return
+
+    try:
+        # Use YouTube search API (unofficial)
+        url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+        response = requests.get(url).text
+
+        # Extract first video ID
+        index = response.find("/watch?v=")
+        if index != -1:
+            video_id = response[index:].split('"')[0]  # Extract /watch?v=XXXX
+            video_url = "https://www.youtube.com" + video_id
+
+            webbrowser.open(video_url)
+            speak(f"Playing {query} on YouTube.")
+        else:
+            speak("I couldn't find a video. Opening the YouTube results page instead.")
+            webbrowser.open(url)
+
+    except Exception as e:
+        speak("An error occurred. Opening YouTube search page.")
+        webbrowser.open(url)
+        print(e)
+
+
+def search_wikipedia(topic):
+    """Searches Wikipedia and provides a summary."""
+    try:
+        results = wikipedia.summary(topic, sentences=2)
+        speak(f"According to Wikipedia, {results}")
+    except wikipedia.exceptions.DisambiguationError as e:
+        default_choice = e.options[0]  # Choose the first option
+        speak(f"There are multiple results. I will read about {default_choice}.")
+        search_wikipedia(default_choice)
+    except wikipedia.exceptions.PageError:
+        speak("I couldn't find anything on Wikipedia. Would you like me to search Google?")
+        if "yes" in takeCommand():
+            open_website(f"https://www.google.com/search?q={topic}", "Google Search")
+
+
+def open_website(url, name=None):
+    """Opens a website in the browser."""
+    try:
+        webbrowser.open(url)
+        speak(f"Opening {name}.")
+    except Exception as e:
+        speak(f"❌ Error opening {name}. {str(e)}")
+
+
+def open_application(app, name):
+    """Opens a desktop application."""
+    try:
+        subprocess.Popen([app])
+        speak(f"Opening {name}.")
+    except FileNotFoundError:
+        speak(f"❌ Couldn't find {name}.")
+
+def change_voice(gender="female"):
+    """Changes the assistant's voice."""
+    voices = engine.getProperty('voices')
+    if gender == "male":
+        engine.setProperty('voice', voices[0].id)  # Male voice
+    else:
+        engine.setProperty('voice', voices[1].id)  # Female voice
+    speak(f"Voice changed to {gender}.")
+
+
+def set_reminder(time_str, reminder_message):
+    """Sets a reminder at the specified time."""
+    try:
+        # Convert input time string (e.g., '15:30') to a datetime object
+        reminder_time = datetime.datetime.strptime(time_str, "%H:%M").time()
+        current_time = datetime.datetime.now().time()
+
+        # Calculate the time difference
+        now = datetime.datetime.now()
+        reminder_datetime = datetime.datetime.combine(now.date(), reminder_time)
+
+        if reminder_datetime < now:
+            speak("The time you entered has already passed. Please try again.")
+            return
+
+        time_diff = (reminder_datetime - now).total_seconds()
+        speak(f"Reminder set for {time_str}. I will notify you.")
+        time.sleep(time_diff)
+        speak(f"🔔 Reminder: {reminder_message}")
+
+    except ValueError:
+        speak("❌ Invalid time format. Use HH:MM.")
+
+
+def google_search(query):
+    speak(f"Searching Google for {query}")
+    try:
+        results = list(search(query, num=1, stop=1))
+        if results:
+            webbrowser.open(results[0])
+            speak(f"Opening {results[0]}")
+        else:
+            speak("No results found.")
+    except Exception as e:
+        speak(f"Error: {e}")
+
+
+def process_command(query):
+    """Processes user commands, regardless of voice settings."""
+    if not query:
+        return
+
+    # Check for voice change command
+    if "change voice to male" in query:
+        change_voice("male")
+        return  # Continue processing after voice change
+
+    if "change voice to female" in query:
+        change_voice("female")
+        return  # Continue processing after voice change
+
+    # Dictionary of other commands
+    actions = {
+        "wikipedia": lambda: search_wikipedia(query.replace("wikipedia", "").strip()),
+        "open youtube": lambda: open_website("https://www.youtube.com", "YouTube"),
+        "open spotify": lambda: open_website("https://open.spotify.com", "Spotify"),
+        "open linkedin": lambda: open_website("https://www.linkedin.com", "LinkedIn"),
+        "open Google": lambda: open_website("https://www.google.co.in/", "Google"),
+        "whatsapp": lambda: open_website("https://web.whatsapp.com/", "WhatsApp Web"),
+        "flipkart": lambda: open_website("https://www.flipkart.com", "flipkart"),
+        "notepad": lambda: open_application("notepad.exe", "Notepad"),
+        "calculator": lambda: open_application("calc.exe", "Calculator"),
+        "joke": tellJoke,
+        "time": lambda: speak(f"The time is {datetime.datetime.now().strftime('%H:%M:%S')}"),
+        "name": lambda: speak(f"My name is {anya_data['name']}."),
+        "about": lambda: speak(
+            f"I am {anya_data['name']}, and I am {anya_data['age']} years old. My skills include " + ", ".join(
+                anya_data['skills']) + "."),
+        "shutdown": shutdown_system,
+        "restart": restart_system,
+        "sleep": sleep_system,
+        "exit": exit_anya,
+        "lock pc": lock_pc,
+        "lock computer": lock_pc,
+        "sign out": sign_out,
+        "logout": sign_out,
+        "battery status": battery_status,
+        "battery percentage": battery_status,
+        "battery": battery_status,
+        "increase volume": volume_up,
+        "volume up": volume_up,
+        "decrease volume": volume_down,
+        "volume down": volume_down,
+        "mute": volume_mute,
+        "unmute": volume_unmute,
+        "increase brightness": brightness_up,
+        "decrease brightness": brightness_down,
+        "screenshot": take_screenshot,
+        "take screenshot": take_screenshot,
+        "open gmail": open_gmail,
+        "show me today's news": get_news,
+        "today's news": get_news,
+        "news": get_news,
+        "open zoho": open_Zoho,
+        "zoho": open_Zoho,
+        "open instagram": open_instagram,
+        "instagram": open_instagram,
+    }
+
+    # Handling YouTube searches separately
+    if "search on youtube" in query or "search youtube" in query or ("search" in query and "youtube" in query):
+        search_on_youtube(query)
+        return
+
+    # Close application command
+    if "close" in query or "exit" in query:
+        words = query.split()
+        if len(words) > 1:
+            app_name = query.replace("close", "").replace("exit", "").strip()
+            close_application(app_name)
+            return
+
+    # Execute the appropriate command
+    for key in actions.keys():
+        if key in query:
+            actions[key]()  # Execute the function
+            return
+
+    speak("I didn't understand that. Please try again.")
+
+
+def exit_anya():
+    """Exits the assistant."""
+    speak("Goodbye! Have a great day!")
+    exit()
+
+
+if __name__ == "__main__":
+    wishMe()
+    while True:
+        query = takeCommand()
+        process_command(query)
